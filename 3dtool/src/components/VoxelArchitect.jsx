@@ -5,11 +5,15 @@ const VoxelArchitect = () => {
   // --- React State for HUD UI ---
   const [sysMode, setSysMode] = useState('INITIALIZING');
   const [voxelCount, setVoxelCount] = useState(0);
+  const [palmMenu, setPalmMenu] = useState({ active: false, x: 0, y: 0, scale: 0 });
+  const [hoverInfo, setHoverInfo] = useState({ index: -1, progress: 0 });
 
   // --- DOM Refs ---
   const videoRef = useRef(null);
   const bioCanvasRef = useRef(null);
   const threeCanvasRef = useRef(null);
+  const menuRef = useRef({ x: 0, y: 0, active: false });
+  const menuActionsRef = useRef([]);
 
   // --- Core Configuration Variables ---
   const gridSize = 1.2;
@@ -18,6 +22,12 @@ const VoxelArchitect = () => {
     0xffa500, 0x800080, 0x00ff7f, 0xff1493, 0x7fff00, 0x40e0d0, 
     0xffd700, 0xff4500, 0x9370db, 0x00ced1, 0xf08080, 0xadff2f, 
     0xff6347, 0x00bfff, 0xda70d6
+  ];
+  
+  const menuOptions = [
+    { id: 'color', label: '🎨 COLOR' },
+    { id: 'gravity', label: '⚛️ GRAVITY' },
+    { id: 'disco', label: '🕺 DISCO' }
   ];
 
   useEffect(() => {
@@ -69,6 +79,12 @@ const VoxelArchitect = () => {
 
     let globalColorIndex = 0;
     let leftPeaceWasActive = false;
+    
+    menuActionsRef.current = [
+      () => { globalColorIndex = (globalColorIndex + 1) % colorPalette.length; },
+      () => { gravityEnabled = !gravityEnabled; if(gravityEnabled) initiateGravityFall(); },
+      () => { rainbowActive = !rainbowActive; }
+    ];
 
     let isGrabbing = false, grabTimer = 0;
     let grabOffset = new THREE.Vector3();
@@ -77,6 +93,12 @@ const VoxelArchitect = () => {
     let resetTimer = 0, rotateTimer = 0;
     let startPinchPos = null, activeAxis = null;
     let sketchKeys = new Set();
+    
+    // Interaction engine parameters
+    let interactionCooldown = 0;
+    let hoverTimer = 0;
+    let hoveredIdx = -1;
+    const HOVER_THRESHOLD = 1500;
 
     const GRAB_HOLD = 500;
     const INTENT_HOLD = 500;
@@ -115,8 +137,8 @@ const VoxelArchitect = () => {
         });
       }
       const pts = smoothedLandmarks[label];
-      ctx.shadowBlur = 10; ctx.shadowColor = "#00f0ff";
-      ctx.beginPath(); ctx.strokeStyle = "rgba(0, 240, 255, 0.6)"; ctx.lineWidth = 2;
+      ctx.shadowBlur = 10; ctx.shadowColor = label === "Left" ? "#00f0ff" : "#ff00cc";
+      ctx.beginPath(); ctx.strokeStyle = label === "Left" ? "rgba(0, 240, 255, 0.6)" : "rgba(255, 0, 204, 0.6)"; ctx.lineWidth = 2;
       const CONNECTIONS = [[0, 1], [1, 2], [2, 3], [3, 4], [0, 5], [5, 6], [6, 7], [7, 8], [9, 10], [10, 11], [11, 12], [13, 14], [14, 15], [15, 16], [0, 17], [17, 18], [18, 19], [19, 20], [5, 9], [9, 13], [13, 17], [0, 5]];
       CONNECTIONS.forEach(([a, b]) => {
         ctx.moveTo(pts[a].x * bioCanvasRef.current.width, pts[a].y * bioCanvasRef.current.height);
@@ -126,7 +148,7 @@ const VoxelArchitect = () => {
       pts.forEach((pt, i) => {
         const x = pt.x * bioCanvasRef.current.width, y = pt.y * bioCanvasRef.current.height;
         if ([4, 8, 12, 16, 20].includes(i)) {
-          ctx.strokeStyle = "#00f0ff"; ctx.strokeRect(x - 6, y - 6, 12, 12);
+          ctx.strokeStyle = label === "Left" ? "#00f0ff" : "#ff00cc"; ctx.strokeRect(x - 6, y - 6, 12, 12);
         } else { ctx.fillStyle = "#fff"; ctx.fillRect(x - 2, y - 2, 4, 4); }
       });
     };
@@ -180,15 +202,28 @@ const VoxelArchitect = () => {
       if (!results.multiHandLandmarks) {
         grabTimer = 0; buildTimer = 0; eraseTimer = 0;
         resetTimer = 0; rotateTimer = 0; gravityTimer = 0; restoreTimer = 0;
+        hoverTimer = 0; hoveredIdx = -1;
+        setHoverInfo({ index: -1, progress: 0 });
         return;
       }
 
       let lHand = null, rHand = null;
       results.multiHandedness.forEach((hand, idx) => {
         const landmarks = results.multiHandLandmarks[idx];
-        drawCyberHand(bioCtx, landmarks, hand.label);
-        if (hand.label === 'Left') lHand = smoothedLandmarks['Left'];
-        if (hand.label === 'Right') rHand = smoothedLandmarks['Right'];
+        
+        // Strict Hand-Swap & Physical Coordinate Check
+        // Calculate Cross Product of (Wrist->Index) and (Wrist->Pinky)
+        const v1 = { x: landmarks[5].x - landmarks[0].x, y: landmarks[5].y - landmarks[0].y };
+        const v2 = { x: landmarks[17].x - landmarks[0].x, y: landmarks[17].y - landmarks[0].y };
+        const cp = v1.x * v2.y - v1.y * v2.x;
+        
+        // Physical LEFT hand facing camera results in cp < -0.01 in mirrored space
+        const isPhysicalLeft = cp < -0.01;
+        const label = isPhysicalLeft ? 'Left' : 'Right';
+        
+        drawCyberHand(bioCtx, landmarks, label);
+        if (isPhysicalLeft) lHand = smoothedLandmarks['Left'];
+        else rHand = smoothedLandmarks['Right'];
       });
 
       // Synchronized Two-Hand States
@@ -219,32 +254,50 @@ const VoxelArchitect = () => {
             setSysMode("SYSTEM: HOLD TO ENABLE ROTATION...");
           } else {
             setSysMode("SYSTEM: GLOBAL_ROTATE ACTIVE");
-            voxelGroup.rotation.y += (rHand[9].x - lHand[9].x - 0.5) * 0.05;
+            voxelGroup.rotation.y += (rHand[9].x - lHand[9].x) * 0.05;
             voxelGroup.rotation.x += (rHand[9].y - lHand[9].y) * 0.05;
           }
           return;
         } else { rotateTimer = 0; }
       }
 
-      // Left Hand Commands
+      // Left Hand Commands (Menu Anchor)
       if (lHand) {
         const fingersCurled = lHand[8].y > lHand[6].y && lHand[12].y > lHand[10].y && lHand[16].y > lHand[14].y && lHand[20].y > lHand[18].y;
         const isFist = fingersCurled && getDist(lHand[4], lHand[12]) < 0.1;
         const isPalm = lHand[8].y < lHand[6].y && lHand[12].y < lHand[10].y && lHand[20].y < lHand[18].y;
+        
+        // The physical left hand facing camera check is already baked into hand assignment (cp < -0.01)
+        if (isPalm) {
+          // Tracking & Projection: Landmark 9 (Middle MCP) as anchor
+          const targetX = (1 - lHand[9].x) * window.innerWidth; // Mirrored compensation
+          const targetY = lHand[9].y * window.innerHeight;
+          
+          menuRef.current.x += (targetX - menuRef.current.x) * 0.2;
+          menuRef.current.y += (targetY - menuRef.current.y) * 0.2;
+          menuRef.current.active = true;
+          
+          setPalmMenu(prev => ({ 
+            ...prev, 
+            active: true, 
+            x: menuRef.current.x, 
+            y: menuRef.current.y, 
+            scale: Math.min(prev.scale + 0.1, 1) 
+          }));
+        } else {
+          menuRef.current.active = false;
+          setPalmMenu(prev => ({ 
+            ...prev, 
+            active: prev.scale > 0.01, 
+            scale: Math.max(prev.scale - 0.1, 0) 
+          }));
+        }
+
         const isThumbDown = lHand[4].y > lHand[3].y && lHand[4].y > lHand[17].y && fingersCurled;
         const isThumbUp = lHand[4].y < lHand[3].y && lHand[4].y < lHand[5].y && fingersCurled;
 
-        const isLeftPeace = lHand[8].y < lHand[6].y && lHand[12].y < lHand[10].y && lHand[16].y > lHand[14].y && lHand[20].y > lHand[18].y;
-        if (isLeftPeace && !leftPeaceWasActive) {
-          globalColorIndex = (globalColorIndex + 1) % colorPalette.length;
-          leftPeaceWasActive = true;
-        } else if (!isLeftPeace) {
-          leftPeaceWasActive = false;
-        }
-
         if (isPalm) {
-          isGrabbing = false;
-          grabTimer = 0;
+          isGrabbing = false; grabTimer = 0;
           setSysMode("BIO_LINK: SCANNING");
         }
 
@@ -275,9 +328,7 @@ const VoxelArchitect = () => {
               restoreTimer = 0;
             }
           }
-        } else {
-          gravityTimer = 0; restoreTimer = 0;
-        }
+        } else { gravityTimer = 0; restoreTimer = 0; }
 
         if (isFist && !isThumbDown && !isThumbUp) {
           if (grabTimer < GRAB_HOLD) {
@@ -295,7 +346,7 @@ const VoxelArchitect = () => {
         }
       }
 
-      // Right Hand Commands
+      // Right Hand Commands (Interaction)
       if (rHand) {
         const thumbTip = rHand[4], indexTip = rHand[8], midTip = rHand[12];
         const pinchingNow = getDist(thumbTip, indexTip) < pinchThreshold;
@@ -307,9 +358,50 @@ const VoxelArchitect = () => {
         else if (palmOpen) rainbowActive = false;
 
         const px = indexTip.x * bioCanvasRef.current.width, py = indexTip.y * bioCanvasRef.current.height;
+        
+        // --- CONTEXTUAL PALM MENU INTERACTION (HOVER ENGINE) ---
+        if (menuRef.current.active) {
+          const screenRX = (1 - indexTip.x) * window.innerWidth;
+          const screenRY = indexTip.y * window.innerHeight;
+          let currentHover = -1;
+
+          menuOptions.forEach((opt, idx) => {
+            const itemX = menuRef.current.x;
+            const itemY = menuRef.current.y + (idx * 52) + 80;
+            
+            // 2D Bounding Box Check (120x40 area)
+            if (Math.abs(screenRX - itemX) < 60 && Math.abs(screenRY - itemY) < 25) {
+              currentHover = idx;
+            }
+          });
+
+          if (currentHover !== -1) {
+            if (hoveredIdx === currentHover) {
+              hoverTimer += 16;
+              if (hoverTimer >= HOVER_THRESHOLD) {
+                if (menuActionsRef.current[currentHover]) {
+                  menuActionsRef.current[currentHover]();
+                  setSysMode(`MENU: EXECUTED ${menuOptions[currentHover].id.toUpperCase()}`);
+                }
+                hoverTimer = -1000; // Reset with refractory period
+              }
+            } else {
+              hoveredIdx = currentHover;
+              hoverTimer = 0;
+            }
+          } else {
+            hoveredIdx = -1;
+            hoverTimer = 0;
+          }
+          
+          setHoverInfo({ index: hoveredIdx, progress: Math.max(0, hoverTimer / HOVER_THRESHOLD) });
+        } else if (hoveredIdx !== -1) {
+          hoveredIdx = -1; hoverTimer = 0;
+          setHoverInfo({ index: -1, progress: 0 });
+        }
+
         const worldPos = new THREE.Vector3((0.5 - indexTip.x) * 25, (0.5 - indexTip.y) * 18, 0);
         const localPos = voxelGroup.worldToLocal(worldPos.clone());
-
         let gx = Math.round(localPos.x / gridSize) * gridSize;
         let gy = Math.round(localPos.y / gridSize) * gridSize;
         let gz = 0;
@@ -343,8 +435,7 @@ const VoxelArchitect = () => {
             else {
               const dx = Math.abs(gx - startPinchPos.x), dy = Math.abs(gy - startPinchPos.y);
               if (!activeAxis && (dx > 0.4 || dy > 0.4)) {
-                if (dx >= dy) activeAxis = 'x';
-                else activeAxis = 'y';
+                if (dx >= dy) activeAxis = 'x'; else activeAxis = 'y';
               }
               let tx = startPinchPos.x, ty = startPinchPos.y;
               if (activeAxis === 'x') tx = gx; else if (activeAxis === 'y') ty = gy;
@@ -558,6 +649,66 @@ const VoxelArchitect = () => {
         ref={bioCanvasRef} 
         style={{ position: 'absolute', width: '100vw', height: '100vh', zIndex: 10, transform: 'scaleX(-1)', pointerEvents: 'none' }}
       />
+
+      {/* --- CONTEXTUAL PALM MENU UI --- */}
+      {palmMenu.active && (
+        <div style={{
+          position: 'absolute',
+          left: `${palmMenu.x}px`,
+          top: `${palmMenu.y}px`,
+          zIndex: 100,
+          transform: `translate(-50%, -20px) scale(${palmMenu.scale})`,
+          opacity: palmMenu.scale,
+          transition: 'transform 0.1s ease-out, opacity 0.1s ease-out',
+          pointerEvents: 'none'
+        }}>
+          {/* Menu Anchor Point */}
+          <div style={{
+            width: '40px', height: '40px', border: '2px solid #00f0ff',
+            borderRadius: '50%', boxShadow: '0 0 15px #00f0ff',
+            margin: '0 auto', background: 'rgba(0, 240, 255, 0.2)'
+          }} />
+          
+          {/* Menu Options List */}
+          <div style={{ marginTop: '20px', display: 'flex', flexDirection: 'column', gap: '12px', alignItems: 'center' }}>
+            {menuOptions.map((opt, i) => {
+              const isHovered = hoverInfo.index === i;
+              return (
+                <div key={opt.id} style={{
+                  width: '120px', height: '40px',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  background: isHovered ? 'rgba(0, 240, 255, 0.3)' : 'rgba(0,0,0,0.8)',
+                  border: isHovered ? '2px solid #fff' : '1px solid #00f0ff',
+                  color: isHovered ? '#fff' : '#00f0ff',
+                  fontSize: '12px',
+                  fontWeight: 'bold',
+                  textAlign: 'center',
+                  boxShadow: isHovered ? '0 0 25px #00f0ff' : '0 0 5px rgba(0, 240, 255, 0.3)',
+                  textShadow: isHovered ? '0 0 15px #00f0ff' : 'none',
+                  textTransform: 'uppercase',
+                  letterSpacing: '1px',
+                  transform: isHovered ? 'scale(1.15)' : 'scale(1)',
+                  transition: 'all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+                  position: 'relative',
+                  overflow: 'hidden'
+                }}>
+                  {/* Progress Indicator (Bottom Bar) */}
+                  {isHovered && hoverInfo.progress > 0 && (
+                    <div style={{
+                      position: 'absolute', bottom: 0, left: 0,
+                      height: '4px', background: '#fff',
+                      width: `${hoverInfo.progress * 100}%`,
+                      boxShadow: '0 0 10px #fff',
+                      transition: 'width 0.05s linear'
+                    }} />
+                  )}
+                  {opt.label}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
