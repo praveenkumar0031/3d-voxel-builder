@@ -24,9 +24,9 @@ const BuilderPage = () => {
 
   // 1. Browser Tab Title Sync
   useEffect(() => {
-    document.title = `${sceneName} | Voxel Architect`;
+    document.title = `${sceneName} | GesticStudio`;
     return () => {
-      document.title = 'Voxel Architect';
+      document.title = 'GesticStudio';
     };
   }, [sceneName]);
 

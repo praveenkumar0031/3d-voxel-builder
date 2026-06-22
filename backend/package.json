@@ -1,7 +1,7 @@
 {
   "name": "backend",
   "version": "1.0.0",
-  "description": "Voxel Architect Backend",
+  "description": "GesticStudio Backend",
   "main": "server.js",
   "type": "commonjs",
   "scripts": {

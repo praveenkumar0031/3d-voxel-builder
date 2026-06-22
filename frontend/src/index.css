@@ -14,7 +14,7 @@ html, body {
 }
 
 body {
-  padding-top: 48px; /* Offset for the fixed top navbar */
+  padding-top: 54px; /* Offset for the fixed top navbar */
   box-sizing: border-box;
 }
 
