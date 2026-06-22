@@ -1,0 +1,164 @@
+@import './styles/theme.css';
+
+/* Global Resets */
+html, body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--va-bg);
+  color: var(--va-text);
+  font-family: var(--va-font-display);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+body {
+  padding-top: 48px; /* Offset for the fixed top navbar */
+  box-sizing: border-box;
+}
+
+/* Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--va-bg);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--va-panel-border);
+  border-radius: var(--va-radius-sm);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--va-tone-idle);
+}
+
+/* Global Typography & Headings */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--va-font-display);
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  margin-top: 0;
+}
+
+/* Form Controls & Inputs */
+input, textarea, select {
+  font-family: var(--va-font-display);
+  font-size: 13px;
+  background-color: var(--va-input-bg);
+  border: 1px solid var(--va-panel-border);
+  color: var(--va-text);
+  padding: 10px 14px;
+  border-radius: var(--va-radius-sm);
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+input:focus, textarea:focus, select:focus {
+  border-color: var(--va-tone-active);
+  box-shadow: 0 0 6px rgba(62, 130, 241, 0.2);
+}
+
+input::placeholder, textarea::placeholder {
+  color: var(--va-text-faint);
+}
+
+/* Buttons */
+button {
+  font-family: var(--va-font-display);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  cursor: pointer;
+  padding: 10px 20px;
+  border-radius: var(--va-radius-sm);
+  transition: all 0.2s ease;
+  box-sizing: border-box;
+}
+
+/* Utility Classes */
+.panel {
+  background-color: var(--va-panel);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--va-panel-border);
+  border-radius: var(--va-radius-md);
+  padding: 24px;
+}
+
+.text-dim {
+  color: var(--va-text-dim);
+}
+
+.text-faint {
+  color: var(--va-text-faint);
+}
+
+.btn-primary {
+  background-color: var(--va-tone-active);
+  color: var(--va-text);
+  border: 1px solid var(--va-tone-active);
+}
+
+.btn-primary:hover {
+  background-color: #2b70e0;
+  box-shadow: 0 0 12px rgba(62, 130, 241, 0.4);
+  transform: translateY(-1px);
+}
+
+.btn-primary:active {
+  transform: translateY(0);
+}
+
+.btn-secondary {
+  background-color: transparent;
+  color: var(--va-text);
+  border: 1px solid var(--va-text-dim);
+}
+
+.btn-secondary:hover {
+  background-color: var(--va-panel-border);
+  color: var(--va-text);
+  transform: translateY(-1px);
+}
+
+.btn-secondary:active {
+  transform: translateY(0);
+}
+
+.btn-danger {
+  background-color: transparent;
+  color: var(--va-tone-error);
+  border: 1px solid var(--va-tone-error);
+}
+
+.btn-danger:hover {
+  background-color: rgba(255, 107, 107, 0.1);
+  box-shadow: 0 0 12px rgba(255, 107, 107, 0.2);
+  transform: translateY(-1px);
+}
+
+.btn-danger:active {
+  transform: translateY(0);
+}
+
+/* Hide webcam feed visually but keep tracking active in the background */
+div[data-webcam="hidden"] video {
+  opacity: 0 !important;
+  pointer-events: none;
+}
+
+/* Override locked StatusRail gradient in light theme */
+[data-theme="light"] div[style*="to bottom"][style*="rgba(11,13,16"] {
+  background: linear-gradient(to bottom, rgba(244, 242, 238, 0.95), rgba(244, 242, 238, 0)) !important;
+}
+
+/* Override locked GestureLegend gradient in light theme */
+[data-theme="light"] div[style*="to top"][style*="rgba(11,13,16"] {
+  background: linear-gradient(to top, rgba(244, 242, 238, 0.95), rgba(244, 242, 238, 0)) !important;
+}
+

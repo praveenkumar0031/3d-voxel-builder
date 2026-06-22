@@ -50,6 +50,7 @@ export class SceneEngine {
     this._animationFrameId = null;
     this._onResize = () => this.handleResize();
     window.addEventListener('resize', this._onResize);
+    window.sceneEngineInstance = this;
   }
 
   handleResize() {
@@ -84,11 +85,12 @@ export class SceneEngine {
     this.sketchKeys.clear();
   }
 
-  _createFinalCube(x, y, z) {
+  _createFinalCube(x, y, z, colorOverride) {
+    const voxelColor = colorOverride !== undefined ? colorOverride : this.activeColor;
     const geometry = new THREE.BoxGeometry(GRID_SIZE * 0.95, GRID_SIZE * 0.95, GRID_SIZE * 0.95);
     const material = new THREE.MeshPhongMaterial({
       color: 0x001122,
-      emissive: this.activeColor,
+      emissive: voxelColor,
       emissiveIntensity: 0.4,
       transparent: true,
       opacity: 0.8,
@@ -100,9 +102,10 @@ export class SceneEngine {
     mesh.add(
       new THREE.LineSegments(
         new THREE.EdgesGeometry(geometry),
-        new THREE.LineBasicMaterial({ color: this.activeColor })
+        new THREE.LineBasicMaterial({ color: voxelColor })
       )
     );
+    mesh.voxelColor = voxelColor;
     return mesh;
   }
 
@@ -226,9 +229,54 @@ export class SceneEngine {
     });
   }
 
+  getVoxelData() {
+    const data = [];
+    this.placedVoxels.forEach((mesh) => {
+      data.push({
+        x: mesh.position.x,
+        y: mesh.position.y,
+        z: mesh.position.z,
+        color: mesh.voxelColor !== undefined ? mesh.voxelColor : this.activeColor
+      });
+    });
+    return data;
+  }
+
+  takeScreenshot() {
+    this.renderer.render(this.scene, this.camera);
+    return this.renderer.domElement.toDataURL('image/png');
+  }
+
+  loadVoxelData(voxels) {
+    // Clear all currently placed voxels
+    this.placedVoxels.forEach((v) => {
+      this.voxelGroup.remove(v);
+    });
+    this.placedVoxels.clear();
+
+    // Clear all sketch preview voxels
+    while (this.sketchGroup.children.length > 0) {
+      this.sketchGroup.remove(this.sketchGroup.children[0]);
+    }
+    this.sketchKeys.clear();
+
+    // Hydrate saved voxels
+    if (Array.isArray(voxels)) {
+      voxels.forEach((vox) => {
+        const key = voxelKey(vox.x, vox.y, vox.z);
+        const cube = this._createFinalCube(vox.x, vox.y, vox.z, vox.color);
+        this.voxelGroup.add(cube);
+        this.placedVoxels.set(key, cube);
+      });
+    }
+  }
+
   dispose() {
     if (this._animationFrameId) cancelAnimationFrame(this._animationFrameId);
     window.removeEventListener('resize', this._onResize);
     this.renderer.dispose();
+    if (window.sceneEngineInstance === this) {
+      window.sceneEngineInstance = null;
+    }
   }
 }

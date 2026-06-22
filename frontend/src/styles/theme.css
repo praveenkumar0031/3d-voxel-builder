@@ -26,4 +26,26 @@
   --va-font-display: 'JetBrains Mono', 'IBM Plex Mono', ui-monospace, monospace;
   --va-radius-sm: 3px;
   --va-radius-md: 6px;
+  
+  --va-input-bg: rgba(13, 15, 18, 0.6);
 }
+
+[data-theme="light"] {
+  --va-bg: #f4f2ee;
+  --va-panel: rgba(255, 255, 255, 0.85);
+  --va-panel-border: rgba(11, 13, 16, 0.15);
+  --va-text: #0b0d10;
+  --va-text-dim: rgba(11, 13, 16, 0.65);
+  --va-text-faint: rgba(11, 13, 16, 0.4);
+
+  --va-tone-idle: rgba(11, 13, 16, 0.5);
+  --va-tone-active: #1b63e0;
+  --va-tone-warning: #e09100;
+  --va-tone-error: #d63333;
+
+  --va-hand-left: #0b0d10;
+  --va-hand-right: #d97706;
+  
+  --va-input-bg: rgba(255, 255, 255, 0.85);
+}
+

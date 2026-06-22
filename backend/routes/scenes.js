@@ -61,7 +61,7 @@ router.post('/', auth, async (req, res, next) => {
       voxelCount,
       thumbnail: thumbnail || '',
       tags: Array.isArray(tags) ? tags : [],
-      isPublic: isPublic || false,
+      isPublic: isPublic === true || isPublic === 'true',
     });
 
     await newScene.save();
@@ -115,7 +115,9 @@ router.put('/:id', auth, async (req, res, next) => {
     }
     if (thumbnail !== undefined) scene.thumbnail = thumbnail;
     if (tags !== undefined) scene.tags = Array.isArray(tags) ? tags : [];
-    if (isPublic !== undefined) scene.isPublic = isPublic;
+    if (isPublic !== undefined) {
+      scene.isPublic = (isPublic === true || isPublic === 'true');
+    }
 
     scene.updatedAt = Date.now();
 
